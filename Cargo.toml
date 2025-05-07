@@ -9,4 +9,6 @@ name = "bampy"
 crate-type = ["cdylib"]
 
 [dependencies]
+noodles = { version = "0.97.0", features = ["bam", "bgzf", "core", "sam"] }
+numpy = "0.24.0"
 pyo3 = "0.24.0"
