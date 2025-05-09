@@ -2,12 +2,46 @@ use noodles::bam;
 use noodles::bgzf;
 use noodles::sam;
 use noodles::sam::alignment::record::data::field::value::Array;
+use numpy::ndarray::Array2;
 use numpy::PyArray1;
+use numpy::PyArray2;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3::IntoPyObjectExt;
 use sam::alignment::record::data::field::Value;
 use std::fs::File;
+
+#[pyclass]
+#[derive(Clone, Copy, Debug)]
+pub enum PyKind {
+    Match = 0,
+    Insertion = 1,
+    Deletion = 2,
+    Skip = 3,
+    SoftClip = 4,
+    HardClip = 5,
+    Pad = 6,
+    SequenceMatch = 7,
+    SequenceMismatch = 8,
+}
+
+// RustのKindからPyKindへの変換
+impl From<sam::alignment::record::cigar::op::Kind> for PyKind {
+    fn from(kind: sam::alignment::record::cigar::op::Kind) -> Self {
+        use sam::alignment::record::cigar::op::Kind;
+        match kind {
+            Kind::Match => PyKind::Match,
+            Kind::Insertion => PyKind::Insertion,
+            Kind::Deletion => PyKind::Deletion,
+            Kind::Skip => PyKind::Skip,
+            Kind::SoftClip => PyKind::SoftClip,
+            Kind::HardClip => PyKind::HardClip,
+            Kind::Pad => PyKind::Pad,
+            Kind::SequenceMatch => PyKind::SequenceMatch,
+            Kind::SequenceMismatch => PyKind::SequenceMismatch,
+        }
+    }
+}
 
 #[pyclass]
 pub struct PyBamRecord {
@@ -16,12 +50,18 @@ pub struct PyBamRecord {
     pos: i64,
     mapq: u8,
     len: usize,
+    cigar_ops: Vec<(PyKind, usize)>,
 
     #[pyo3(get)]
     pub tags: Vec<(String, PyObject)>, // list[(tag, value)]
 
-    seq: Vec<u8>,
+    seq: String,
     qual: Vec<u8>,
+}
+
+#[pymethods]
+impl PyKind {
+    // PyKindのメソッド実装（必要に応じて）
 }
 
 #[pymethods]
@@ -48,13 +88,73 @@ impl PyBamRecord {
     }
 
     #[getter]
-    fn seq<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
-        Ok(PyBytes::new(py, &self.seq))
+    fn seq(&self) -> &str {
+        &self.seq
     }
 
     #[getter]
-    fn qual<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
-        Ok(PyBytes::new(py, &self.qual))
+    fn cigar<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray2<u32>>> {
+        let n = self.cigar_ops.len();
+        // len, code を交互に格納する flat ベクタ
+        let mut buf: Vec<u32> = Vec::with_capacity(n * 2);
+        for (kind, len) in &self.cigar_ops {
+            buf.push(*kind as u32);
+            buf.push(*len as u32);
+        }
+        // shape = (n, 2)
+        Ok(PyArray2::from_owned_array(
+            py,
+            Array2::from_shape_vec((n, 2), buf).unwrap(),
+        ))
+    }
+
+    #[getter]
+    fn qual<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u8>>> {
+        Ok(PyArray1::from_vec(py, self.qual.clone()))
+    }
+
+    /// Python 版 repr(obj) / str(obj)
+    fn __repr__(&self) -> PyResult<String> {
+        // 長い配列は切り詰めて表示（お好みで）
+        let seq_preview = if self.seq.len() > 50 {
+            format!("{}…(+{})", &self.seq[..50], self.seq.len() - 50)
+        } else {
+            self.seq.clone()
+        };
+
+        let qual_preview = if self.qual.len() > 50 {
+            format!("{:?}…(+{})", &self.qual[..50], self.qual.len() - 50)
+        } else {
+            format!("{:?}", &self.qual)
+        };
+
+        let tag_list: Vec<String> = self
+            .tags
+            .iter()
+            .map(|(k, v)| format!("{k}:{v:?}"))
+            .collect();
+
+        let tag_preview = format!("[{}]", tag_list.join(", "));
+
+        Ok(format!(
+            "<PyBamRecord qname='{q}' flag={f:#06x} pos={p} len={l} mapq={mq} \
+             seq='{seq}' qual='{qual}' tags={tags}>",
+            q = self.qname,
+            f = self.flag,
+            p = self.pos,
+            l = self.len,
+            mq = self.mapq,
+            seq = seq_preview,
+            qual = qual_preview,
+            tags = tag_preview,
+        ))
+    }
+
+    ///
+    /// （必要なら __str__ も同じ内容にしておく）
+    ///
+    fn __str__(&self) -> PyResult<String> {
+        self.__repr__() // まるっと同じで良ければこれで OK
     }
 }
 
@@ -143,8 +243,20 @@ impl BamReader {
         let tlen: i64 = i64::from(record.template_length());
 
         // シーケンスは表示用に文字列、クオリティは bytes で返す
-        let seq = record.sequence().as_ref().to_vec();
+        // let seq = record.sequence().as_ref().to_vec();
+        let seq: String = record.sequence().iter().map(|b| b as char).collect();
+
         let qual = record.quality_scores().as_ref().to_vec();
+
+        let mut cigar_ops = Vec::new();
+
+        for op in record.cigar().iter() {
+            let py_op = match op {
+                Ok(op) => (PyKind::from(op.kind()), op.len() as usize),
+                Err(_) => (PyKind::Match, 0), // エラー時は Match で len=0
+            };
+            cigar_ops.push(py_op);
+        }
 
         // --- タグ（B 型→NumPy 配列に変換）----------------------------------------
         let mut tags = Vec::new();
@@ -185,6 +297,10 @@ impl BamReader {
                                 PyArray1::from_vec(py, v).into_py_any(py).unwrap()
                                 // → Py<PyAny>
                             }
+                            Array::Int8(a) => {
+                                let v = to_vec::<i8>(a.as_ref());
+                                PyArray1::from_vec(py, v).into_py_any(py).unwrap()
+                            }
                             Array::Int16(a) => {
                                 let v = to_vec::<i16>(a.as_ref());
                                 PyArray1::from_vec(py, v).into_py_any(py).unwrap()
@@ -211,6 +327,7 @@ impl BamReader {
             pos,
             mapq,
             len: tlen as usize,
+            cigar_ops,
             tags,
             seq,
             qual,
