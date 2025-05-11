@@ -9,7 +9,7 @@ fn sum_as_string(a: usize, b: usize) -> PyResult<String> {
 
 /// A Python module implemented in Rust.
 /// Python 拡張モジュール `bampy`
-#[pymodule]
+#[pymodule(name = "_bampy")]
 fn bampy(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // クラスを Python 側へ登録
     m.add_class::<iterator::BamReader>()?;

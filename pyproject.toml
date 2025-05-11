@@ -21,3 +21,4 @@ tests = [
 [tool.maturin]
 python-source = "python"
 features = ["pyo3/extension-module"]
+module-name = "bampy._bampy"
