@@ -5,9 +5,11 @@ print(path_to_bam)
 print(path_to_bam.exists())
 print(path_to_bam.is_file())
 
-import bampy as bp
+import bampy._bampy as bp
 
 f = bp.BamReader(str(path_to_bam))
+
+print(f.header.decode("utf-8"))
 
 for record in f:
     print(record)
