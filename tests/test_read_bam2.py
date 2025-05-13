@@ -11,15 +11,23 @@ print(path_to_bam.is_file())
 
 import bampy as bp
 
-f = bp.BamReader(str(path_to_bam))
+f = bp.BamReader(str(path_to_bam), chunk_size=10000)
 
 start_time = time.time()
 print("start_time:", start_time)
 count = 0
-for record in f:
-    count += 1
-    if count % 100000 == 0:
-        print(count)
+for records in f:
+    for record in records:
+        # print(record)
+        # print(record.qname)
+        # print(record.seq)
+        # print(record.qual)
+        # print(record.qual.shape)
+        # print(record.tags)
+        # print(record.cigar)
+        count += 1
+        if count % 100000 == 0:
+            print(count)
 
 elapsed_time = time.time() - start_time
 print("elapsed_time:", elapsed_time)

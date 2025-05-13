@@ -7,15 +7,16 @@ print(path_to_bam.is_file())
 
 import bampy._bampy as bp
 
-f = bp.BamReader(str(path_to_bam))
+f = bp.BamReader(str(path_to_bam), chunk_size=1000)
 
 print(f.header.decode("utf-8"))
 
-for record in f:
-    print(record)
-    print(record.qname)
-    print(record.seq)
-    print(record.qual)
-    print(record.qual.shape)
-    print(record.tags)
-    print(record.cigar)
+for records in f:
+    for record in records:
+        print(record)
+        print(record.qname)
+        print(record.seq)
+        print(record.qual)
+        print(record.qual.shape)
+        print(record.tags)
+        print(record.cigar)

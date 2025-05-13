@@ -1,14 +1,12 @@
-# bampy.pyi  ------------------------------------------------------------
 from __future__ import annotations
 
-from typing import Any, Iterator, List, Tuple
+from typing import Any, Iterator, List, Optional, Tuple
 
 import numpy as np
 import numpy.typing as npt
 
-__all__: list[str]  # ← 好みで
+__all__: list[str]
 
-# ----------------------------------------------------------------------
 class PyBamRecord:
     # ── public attributes ------------------------------------------------
     qname: str
@@ -24,11 +22,10 @@ class PyBamRecord:
     @property
     def qual(self) -> npt.NDArray[np.uint8]: ...
     @property
-    def cigar(self) -> npt.NDArray[np.uint8]: ...
+    def cigar(self) -> npt.NDArray[np.uint32]: ...  # dtype uint32: (n_ops, 2)
 
-# ----------------------------------------------------------------------
-class BamReader(Iterator[PyBamRecord]):
-    def __init__(self, path: str) -> None: ...
+class BamReader(Iterator[List[PyBamRecord]]):
+    def __init__(self, path: str, chunk_size: Optional[int] = ...) -> None: ...
 
     # ── context‑manager --------------------------------------------------
     def __enter__(self) -> BamReader: ...
@@ -41,7 +38,7 @@ class BamReader(Iterator[PyBamRecord]):
 
     # ── iterator ---------------------------------------------------------
     def __iter__(self) -> BamReader: ...
-    def __next__(self) -> PyBamRecord: ...
+    def __next__(self) -> List[PyBamRecord]: ...
 
     # ── other properties -------------------------------------------------
     @property

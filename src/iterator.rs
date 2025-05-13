@@ -2,102 +2,125 @@ use noodles::bam;
 use noodles::bgzf;
 use noodles::sam;
 use noodles::sam::alignment::record::data::field::value::Array;
-use numpy::ndarray::Array2;
-use numpy::PyArray1;
-use numpy::PyArray2;
+use numpy::{ndarray::Array2, PyArray1, PyArray2};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3::IntoPyObjectExt;
 use sam::alignment::record::data::field::Value;
 use std::fs::File;
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::time::Instant;
 
+// 内部で扱う Rust レコード表現
 #[pyclass]
 #[derive(Clone, Copy, Debug)]
 pub enum PyKind {
     Match = 0,
-    Insertion = 1,
-    Deletion = 2,
-    Skip = 3,
-    SoftClip = 4,
-    HardClip = 5,
-    Pad = 6,
-    SequenceMatch = 7,
-    SequenceMismatch = 8,
+    Insertion,
+    Deletion,
+    Skip,
+    SoftClip,
+    HardClip,
+    Pad,
+    SequenceMatch,
+    SequenceMismatch,
 }
 
-// RustのKindからPyKindへの変換
 impl From<sam::alignment::record::cigar::op::Kind> for PyKind {
-    fn from(kind: sam::alignment::record::cigar::op::Kind) -> Self {
-        use sam::alignment::record::cigar::op::Kind;
-        match kind {
-            Kind::Match => PyKind::Match,
-            Kind::Insertion => PyKind::Insertion,
-            Kind::Deletion => PyKind::Deletion,
-            Kind::Skip => PyKind::Skip,
-            Kind::SoftClip => PyKind::SoftClip,
-            Kind::HardClip => PyKind::HardClip,
-            Kind::Pad => PyKind::Pad,
-            Kind::SequenceMatch => PyKind::SequenceMatch,
-            Kind::SequenceMismatch => PyKind::SequenceMismatch,
+    fn from(k: sam::alignment::record::cigar::op::Kind) -> Self {
+        use sam::alignment::record::cigar::op::Kind::*;
+        match k {
+            Match => PyKind::Match,
+            Insertion => PyKind::Insertion,
+            Deletion => PyKind::Deletion,
+            Skip => PyKind::Skip,
+            SoftClip => PyKind::SoftClip,
+            HardClip => PyKind::HardClip,
+            Pad => PyKind::Pad,
+            SequenceMatch => PyKind::SequenceMatch,
+            SequenceMismatch => PyKind::SequenceMismatch,
         }
     }
 }
-
+/// Python 側でラップする BAM レコード
+/// Python 側でラップする BAM レコード
 #[pyclass]
 pub struct PyBamRecord {
-    qname: String,
-    flag: u16,
-    pos: i64,
-    mapq: u8,
-    len: usize,
-    cigar_ops: Vec<(PyKind, usize)>,
-
-    #[pyo3(get)]
-    pub tags: Vec<(String, PyObject)>, // list[(tag, value)]
-
-    seq: String,
-    qual: Vec<u8>,
+    record: bam::Record,
 }
 
-#[pymethods]
-impl PyKind {
-    // PyKindのメソッド実装（必要に応じて）
+/// internal constructor: wrap bam::Record without exposing to Python
+impl PyBamRecord {
+    fn from_record(record: bam::Record) -> Self {
+        PyBamRecord { record }
+    }
 }
-
 #[pymethods]
 impl PyBamRecord {
     #[getter]
-    fn qname(&self) -> &str {
-        &self.qname
-    }
-    #[getter]
-    fn flag(&self) -> u16 {
-        self.flag
-    }
-    #[getter]
-    fn pos(&self) -> i64 {
-        self.pos
-    }
-    #[getter]
-    fn len(&self) -> usize {
-        self.len
-    }
-    #[getter]
-    fn mapq(&self) -> u8 {
-        self.mapq
+    fn qname(&self) -> String {
+        let qname = self
+            .record
+            .name()
+            .map(|b| b.to_string())
+            .unwrap_or_default();
+        return qname;
     }
 
     #[getter]
-    fn seq(&self) -> &str {
-        &self.seq
+    fn flag(&self) -> u16 {
+        u16::from(self.record.flags())
+    }
+
+    #[getter]
+    fn pos(&self) -> i64 {
+        self.record
+            .alignment_start()
+            .and_then(|r| r.ok())
+            .map(|p| usize::from(p) as i64)
+            .unwrap_or(-1)
+    }
+
+    #[getter]
+    fn mapq(&self) -> u8 {
+        self.record
+            .mapping_quality()
+            .map(|mq| u8::from(mq))
+            .unwrap_or(255)
+    }
+
+    #[getter]
+    fn len(&self) -> usize {
+        self.record.template_length().abs() as usize
+    }
+
+    #[getter]
+    fn seq(&self) -> String {
+        let seq: String = self.record.sequence().iter().map(|b| b as char).collect();
+        return seq;
+    }
+
+    #[getter]
+    fn qual<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u8>>> {
+        let qual = self.record.quality_scores().as_ref().to_vec();
+        Ok(PyArray1::from_vec(py, qual))
     }
 
     #[getter]
     fn cigar<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray2<u32>>> {
-        let n = self.cigar_ops.len();
+        let mut cigar_ops = Vec::new();
+        for op in self.record.cigar().iter() {
+            let py_op = match op {
+                Ok(op) => (PyKind::from(op.kind()), op.len() as usize),
+                Err(_) => (PyKind::Match, 0), // エラー時は Match で len=0
+            };
+            cigar_ops.push(py_op);
+        }
+        let n = cigar_ops.len();
         // len, code を交互に格納する flat ベクタ
         let mut buf: Vec<u32> = Vec::with_capacity(n * 2);
-        for (kind, len) in &self.cigar_ops {
+        for (kind, len) in &cigar_ops {
             buf.push(*kind as u32);
             buf.push(*len as u32);
         }
@@ -109,86 +132,85 @@ impl PyBamRecord {
     }
 
     #[getter]
-    fn qual<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u8>>> {
-        Ok(PyArray1::from_vec(py, self.qual.clone()))
-    }
-
-    /// Python 版 repr(obj) / str(obj)
-    fn __repr__(&self) -> PyResult<String> {
-        // 長い配列は切り詰めて表示（お好みで）
-        let seq_preview = if self.seq.len() > 50 {
-            format!("{}…(+{})", &self.seq[..50], self.seq.len() - 50)
-        } else {
-            self.seq.clone()
-        };
-
-        let qual_preview = if self.qual.len() > 50 {
-            format!("{:?}…(+{})", &self.qual[..50], self.qual.len() - 50)
-        } else {
-            format!("{:?}", &self.qual)
-        };
-
-        let tag_list: Vec<String> = self
-            .tags
-            .iter()
-            .map(|(k, v)| format!("{k}:{v:?}"))
-            .collect();
-
-        let tag_preview = format!("[{}]", tag_list.join(", "));
-
-        Ok(format!(
-            "<PyBamRecord qname='{q}' flag={f:#06x} pos={p} len={l} mapq={mq} \
-             seq='{seq}' qual='{qual}' tags={tags}>",
-            q = self.qname,
-            f = self.flag,
-            p = self.pos,
-            l = self.len,
-            mq = self.mapq,
-            seq = seq_preview,
-            qual = qual_preview,
-            tags = tag_preview,
-        ))
-    }
-
-    ///
-    /// （必要なら __str__ も同じ内容にしておく）
-    ///
-    fn __str__(&self) -> PyResult<String> {
-        self.__repr__() // まるっと同じで良ければこれで OK
+    fn tags<'py>(&self, py: Python<'py>) -> Vec<(String, PyObject)> {
+        let mut tags = Vec::new();
+        for field in self.record.data().iter().filter_map(Result::ok) {
+            let key = String::from_utf8_lossy(field.0.as_ref()).into_owned();
+            let val = match field.1 {
+                Value::Int8(n) => (n as i32).into_py_any(py).unwrap(),
+                Value::UInt8(n) => (n as u32).into_py_any(py).unwrap(),
+                Value::Int16(n) => (n as i32).into_py_any(py).unwrap(),
+                Value::UInt16(n) => (n as u32).into_py_any(py).unwrap(),
+                Value::Int32(n) => (n as i32).into_py_any(py).unwrap(),
+                Value::UInt32(n) => (n as u32).into_py_any(py).unwrap(),
+                Value::Float(f) => (f as f64).into_py_any(py).unwrap(),
+                Value::Character(c) => c.to_string().into_py_any(py).unwrap(),
+                Value::String(bs) => String::from_utf8_lossy(bs)
+                    .into_owned()
+                    .into_py_any(py)
+                    .unwrap(),
+                Value::Array(arr) => match arr {
+                    Array::UInt8(a) => {
+                        PyArray1::from_vec(py, a.iter().filter_map(|r| r.ok()).collect())
+                            .into_py_any(py)
+                            .unwrap()
+                    }
+                    Array::Int8(a) => {
+                        PyArray1::from_vec(py, a.iter().filter_map(|r| r.ok()).collect())
+                            .into_py_any(py)
+                            .unwrap()
+                    }
+                    Array::Int16(a) => {
+                        PyArray1::from_vec(py, a.iter().filter_map(|r| r.ok()).collect())
+                            .into_py_any(py)
+                            .unwrap()
+                    }
+                    Array::Float(a) => {
+                        PyArray1::from_vec(py, a.iter().filter_map(|r| r.ok()).collect())
+                            .into_py_any(py)
+                            .unwrap()
+                    }
+                    _ => py.None().into_py_any(py).unwrap(),
+                },
+                _ => continue,
+            };
+            tags.push((key, val));
+        }
+        tags
     }
 }
-
 #[pyclass]
 pub struct BamReader {
-    reader: bam::io::Reader<bgzf::io::reader::Reader<File>>,
+    reader: Arc<Mutex<bam::io::Reader<bgzf::io::reader::Reader<File>>>>,
     header: sam::Header,
+    chunk_size: usize,
 }
 
 #[pymethods]
 impl BamReader {
     #[new]
-    fn new(path: &str) -> PyResult<Self> {
+    fn new(path: &str, chunk_size: Option<usize>) -> PyResult<Self> {
+        let chunk_size = chunk_size.unwrap_or(1);
         let mut reader = bam::io::reader::Builder::default()
             .build_from_path(path)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{e}")))?;
-
-        // header を最初に読む (noodles の Reader は read_header 必須)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
         let header = reader
             .read_header()
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{e}")))?;
-
-        Ok(Self { reader, header })
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
+        Ok(Self {
+            reader: Arc::new(Mutex::new(reader)),
+            header,
+            chunk_size,
+        })
     }
 
     #[getter]
     fn header<'py>(&self, py: Python<'py>) -> PyResult<Py<PyBytes>> {
         // ヘッダを SAM テキスト化
         let mut buf = Vec::new();
-        {
-            let mut w = sam::io::Writer::new(&mut buf);
-            w.write_header(&self.header)
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
-        }
+        let mut w = sam::io::Writer::new(&mut buf);
+        w.write_header(&self.header)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
 
         // Bound<'py, PyBytes> → Py<PyBytes>
         Ok(PyBytes::new(py, &buf).into()) // ここを .into()
@@ -213,128 +235,60 @@ impl BamReader {
         slf
     }
 
-    fn __next__(mut slf: PyRefMut<'_, Self>, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
-        // --- レコード読み込み -----------------------------------------------------
-        let mut record = bam::Record::default();
-        let bytes = slf
-            .reader
-            .read_record(&mut record)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{e}")))?;
-        if bytes == 0 {
-            return Ok(None); // ← EOF で StopIteration
-        }
+    fn __next__(slf: PyRefMut<'_, Self>, py: Python<'_>) -> PyResult<Option<Vec<Py<PyAny>>>> {
+        let t0 = Instant::now();
 
-        // --- 基本フィールド -------------------------------------------------------
-        let qname = record.name().map(|b| b.to_string()).unwrap_or_default();
+        let chunk_size = slf.chunk_size;
 
-        let flag: u16 = u16::from(record.flags());
+        let reader_clone = Arc::clone(&slf.reader);
 
-        // alignment_start : Option<io::Result<Position>>
-        let pos: i64 = match record.alignment_start() {
-            Some(Ok(p)) => usize::from(p) as i64, // Position → usize → i64
-            _ => -1,                              // 未定義なら -1
-        };
+        let raw_recs: Vec<bam::Record> = py.allow_threads(move || {
+            let mut guard = reader_clone.lock().unwrap();
+            let mut v = Vec::with_capacity(chunk_size);
 
-        let mapq: u8 = record
-            .mapping_quality()
-            .map(|mq| u8::from(mq))
-            .unwrap_or(255);
-
-        let tlen: i64 = i64::from(record.template_length());
-
-        // シーケンスは表示用に文字列、クオリティは bytes で返す
-        // let seq = record.sequence().as_ref().to_vec();
-        let seq: String = record.sequence().iter().map(|b| b as char).collect();
-
-        let qual = record.quality_scores().as_ref().to_vec();
-
-        let mut cigar_ops = Vec::new();
-
-        for op in record.cigar().iter() {
-            let py_op = match op {
-                Ok(op) => (PyKind::from(op.kind()), op.len() as usize),
-                Err(_) => (PyKind::Match, 0), // エラー時は Match で len=0
-            };
-            cigar_ops.push(py_op);
-        }
-
-        // --- タグ（B 型→NumPy 配列に変換）----------------------------------------
-        let mut tags = Vec::new();
-        for field in record.data().iter() {
-            use noodles::sam::alignment::record::data::field::value::array::Values;
-            fn to_vec<T: Copy>(values: &dyn Values<'_, T>) -> Vec<T> {
-                // iter() は Iterator<Item = Result<T, _>>
-                values.iter().filter_map(|r| r.ok()).collect()
-            }
-            if let Ok((k, v)) = field {
-                let tag = String::from_utf8_lossy(k.as_ref()).into_owned();
-                let py_val = match v {
-                    // 整数 ─────────────────────────────
-                    Value::Int8(n) => (n as i32).into_py_any(py).unwrap(),
-                    Value::UInt8(n) => (n as u32).into_py_any(py).unwrap(),
-                    Value::Int16(n) => (n as i32).into_py_any(py).unwrap(),
-                    Value::UInt16(n) => (n as u32).into_py_any(py).unwrap(),
-                    Value::Int32(n) => (n as i32).into_py_any(py).unwrap(),
-                    Value::UInt32(n) => (n as u32).into_py_any(py).unwrap(),
-
-                    // 浮動小数点
-                    Value::Float(f) => (f as f64).into_py_any(py).unwrap(),
-
-                    // 1 文字
-                    Value::Character(c) => (c).to_string().into_py_any(py).unwrap(),
-
-                    // 文字列
-                    Value::String(s) => String::from_utf8_lossy(s)
-                        .into_owned()
-                        .into_py_any(py)
-                        .unwrap(),
-
-                    // BAM 配列（B 型）→ NumPy
-                    Value::Array(arr) => {
-                        match arr {
-                            Array::UInt8(a) => {
-                                let v = to_vec::<u8>(a.as_ref()); // &dyn Values
-                                PyArray1::from_vec(py, v).into_py_any(py).unwrap()
-                                // → Py<PyAny>
-                            }
-                            Array::Int8(a) => {
-                                let v = to_vec::<i8>(a.as_ref());
-                                PyArray1::from_vec(py, v).into_py_any(py).unwrap()
-                            }
-                            Array::Int16(a) => {
-                                let v = to_vec::<i16>(a.as_ref());
-                                PyArray1::from_vec(py, v).into_py_any(py).unwrap()
-                            }
-                            Array::Float(a) => {
-                                let v = to_vec::<f32>(a.as_ref());
-                                PyArray1::from_vec(py, v).into_py_any(py).unwrap()
-                            }
-                            _ => py.None().into_py_any(py).unwrap(), // 未対応型
-                        }
+            for _ in 0..chunk_size {
+                let mut rec = bam::Record::default();
+                match guard.read_record(&mut rec) {
+                    Ok(0) => break, // EOF
+                    Ok(_) => v.push(rec),
+                    Err(e) => {
+                        // エラー時は空の Vec を返す
+                        eprintln!("Error reading BAM record: {}", e);
+                        return vec![];
                     }
-
-                    // そのほかはスキップ
-                    _ => continue,
-                };
-                tags.push((tag, py_val));
+                }
             }
+            v
+        });
+
+        if raw_recs.is_empty() {
+            return Ok(None);
         }
 
-        // --- Python オブジェクトを生成 ------------------------------------------
-        let py_rec = PyBamRecord {
-            qname,
-            flag,
-            pos,
-            mapq,
-            len: tlen as usize,
-            cigar_ops,
-            tags,
-            seq,
-            qual,
-        }
-        .into_py_any(py)
-        .unwrap();
+        let dur_io = t0.elapsed();
 
-        Ok(Some(py_rec))
+        let t1 = Instant::now();
+
+        let dur_prep = t1.elapsed();
+        let t2 = Instant::now();
+        // GIL 下で PyBamRecord を生の Record から直接ラップ
+        let mut out = Vec::with_capacity(raw_recs.len());
+        for rec in raw_recs {
+            // Py::new で直接インスタンス化
+            let obj: Py<PyAny> = Py::new(py, PyBamRecord::from_record(rec))
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?
+                .into();
+            out.push(obj);
+        }
+        let dur_conv = t2.elapsed();
+        eprintln!(
+            "__next__ timings: IO={:?}, prep={:?}, conv={:?}, total={:?}",
+            dur_io,
+            dur_prep,
+            dur_conv,
+            dur_io + dur_prep + dur_conv
+        );
+
+        Ok(Some(out))
     }
 }
