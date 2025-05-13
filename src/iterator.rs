@@ -10,7 +10,6 @@ use sam::alignment::record::data::field::Value;
 use std::fs::File;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::time::Instant;
 
 // 内部で扱う Rust レコード表現
 #[pyclass]
@@ -43,8 +42,6 @@ impl From<sam::alignment::record::cigar::op::Kind> for PyKind {
         }
     }
 }
-/// Python 側でラップする BAM レコード
-/// Python 側でラップする BAM レコード
 #[pyclass]
 pub struct PyBamRecord {
     record: bam::Record,
@@ -226,7 +223,6 @@ impl BamReader {
         _exc_val: PyObject,
         _trace: PyObject,
     ) -> PyResult<()> {
-        // Reader は Drop で閉じるので特に不要だが、明示的にファイル flush/close するならここ
         Ok(())
     }
 
@@ -236,8 +232,6 @@ impl BamReader {
     }
 
     fn __next__(slf: PyRefMut<'_, Self>, py: Python<'_>) -> PyResult<Option<Vec<Py<PyAny>>>> {
-        let t0 = Instant::now();
-
         let chunk_size = slf.chunk_size;
 
         let reader_clone = Arc::clone(&slf.reader);
@@ -265,29 +259,13 @@ impl BamReader {
             return Ok(None);
         }
 
-        let dur_io = t0.elapsed();
-
-        let t1 = Instant::now();
-
-        let dur_prep = t1.elapsed();
-        let t2 = Instant::now();
-        // GIL 下で PyBamRecord を生の Record から直接ラップ
         let mut out = Vec::with_capacity(raw_recs.len());
         for rec in raw_recs {
-            // Py::new で直接インスタンス化
             let obj: Py<PyAny> = Py::new(py, PyBamRecord::from_record(rec))
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?
                 .into();
             out.push(obj);
         }
-        let dur_conv = t2.elapsed();
-        eprintln!(
-            "__next__ timings: IO={:?}, prep={:?}, conv={:?}, total={:?}",
-            dur_io,
-            dur_prep,
-            dur_conv,
-            dur_io + dur_prep + dur_conv
-        );
 
         Ok(Some(out))
     }
