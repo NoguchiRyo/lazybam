@@ -21,16 +21,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
 
 [[package]]
-name = "bampy"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "noodles",
- "numpy",
- "pyo3",
-]
-
-[[package]]
 name = "bit-vec"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -138,6 +128,16 @@ name = "indoc"
 version = "2.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f4c7245a08504955605670dbf141fceab975f15ca21570696aebe9d2e71576bd"
+
+[[package]]
+name = "lazybam"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "noodles",
+ "numpy",
+ "pyo3",
+]
 
 [[package]]
 name = "lexical-core"

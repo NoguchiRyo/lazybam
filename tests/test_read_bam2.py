@@ -9,9 +9,9 @@ print(path_to_bam)
 print(path_to_bam.exists())
 print(path_to_bam.is_file())
 
-import bampy as bp
+import lazybam as lb
 
-f = bp.BamReader(str(path_to_bam), chunk_size=1)
+f = lb.BamReader(str(path_to_bam), chunk_size=1)
 
 start_time = time.time()
 print("start_time:", start_time)

@@ -5,9 +5,9 @@ print(path_to_bam)
 print(path_to_bam.exists())
 print(path_to_bam.is_file())
 
-import bampy._bampy as bp
+import lazybam as lb
 
-f = bp.BamReader(str(path_to_bam), chunk_size=1000)
+f = lb.BamReader(str(path_to_bam), chunk_size=1000)
 
 print(f.header.decode("utf-8"))
 

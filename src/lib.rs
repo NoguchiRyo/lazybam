@@ -7,8 +7,8 @@ mod write;
 mod write_bams;
 
 /// A Python module implemented in Rust.
-#[pymodule(name = "_bampy")]
-fn bampy(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+#[pymodule(name = "lazybam")]
+fn lazybam(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<iterator::BamReader>()?;
     m.add_class::<record::PyBamRecord>()?;
     m.add_class::<record_override::RecordOverride>()?;
