@@ -11,7 +11,7 @@ print(path_to_bam.is_file())
 
 import bampy as bp
 
-f = bp.BamReader(str(path_to_bam), chunk_size=10000)
+f = bp.BamReader(str(path_to_bam), chunk_size=1)
 
 start_time = time.time()
 print("start_time:", start_time)

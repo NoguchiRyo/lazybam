@@ -10,12 +10,16 @@ import bampy._bampy as bp
 f = bp.BamReader(str(path_to_bam), chunk_size=1000)
 
 print(f.header.decode("utf-8"))
-
+record_list: list[bp.PyBamRecord] = []
 for records in f:
     for record in records:
-        print(record)
-        print(record.qname)
-        print(record.seq)
-        print(record.qual)
-        print(record.tags)
-        print(record.cigar)
+        record_list.append(record)
+
+print("record length:", len(record_list))
+
+bp.write_chunk_py(
+    header_bytes=f.header,
+    records=record_list,
+    out_bam=str(path_to_bam.parent / "test_reads_out.bam"),
+    sort=False,
+)
