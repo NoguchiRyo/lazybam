@@ -17,9 +17,17 @@ for records in f:
 
 print("record length:", len(record_list))
 
+chunk_path = path_to_bam.parent / "test_reads_out_chunk.bam"
+out_path = path_to_bam.parent / "test_reads_out.bam"
 bp.write_chunk_py(
     header_bytes=f.header,
     records=record_list,
-    out_bam=str(path_to_bam.parent / "test_reads_out.bam"),
-    sort=False,
+    out_bam=str(chunk_path),
+    sort=True,
+)
+bp.merge_chunks_py(
+    header_bytes=f.header,
+    chunks=[str(chunk_path)],
+    out_bam=str(out_path),
+    sort=True,
 )
