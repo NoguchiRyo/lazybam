@@ -153,8 +153,13 @@ impl PyBamRecord {
         self.record.sequence().iter().map(|b| b as char).collect()
     }
     #[getter]
-    fn qual(&self) -> Vec<u8> {
-        return self.record.quality_scores().as_ref().to_vec();
+    fn qual(&self) -> Vec<usize> {
+        self.record
+            .quality_scores()
+            .as_ref()
+            .iter()
+            .map(|&b| b as usize)
+            .collect()
     }
 
     #[getter]
