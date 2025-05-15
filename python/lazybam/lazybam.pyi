@@ -4,6 +4,11 @@ from typing import Any, List, Optional, Tuple
 
 import numpy as np  # type: ignore
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .header import BamHeader
+
 __doc__: str = "Rust powered BAM reader built on noodles + PyO3"
 
 class PyKind:
@@ -74,7 +79,9 @@ class BamReader:
 
     # ── other properties -------------------------------------------------
     @property
-    def header(self) -> bytes: ...
+    def _header(self) -> bytes: ...
+    @property
+    def header(self) -> BamHeader: ...
 
 # Writing functions
 def write_chunk_py(

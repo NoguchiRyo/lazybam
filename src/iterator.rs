@@ -34,7 +34,7 @@ impl BamReader {
     }
 
     #[getter]
-    fn header<'py>(&self, py: Python<'py>) -> PyResult<Py<PyBytes>> {
+    fn _header<'py>(&self, py: Python<'py>) -> PyResult<Py<PyBytes>> {
         // ヘッダを SAM テキスト化
         let mut buf = Vec::new();
         let mut w = sam::io::Writer::new(&mut buf);
