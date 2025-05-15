@@ -27,6 +27,7 @@ class RecordOverride:
         self,
         reference_sequence_id: Optional[int] = None,
         cigar: Optional[List[Tuple[int, int]]] = None,
+        alignment_start: Optional[int] = None,
         tags: Optional[List[Tuple[str, Any]]] = None,
     ) -> None: ...
     @property
@@ -41,6 +42,10 @@ class RecordOverride:
     def tags(self) -> List[Tuple[str, Any]]: ...
     @tags.setter
     def tags(self, vals: List[Tuple[str, Any]]) -> None: ...
+    @property
+    def alignment_start(self) -> Optional[int]: ...
+    @alignment_start.setter
+    def alignment_start(self, pos: int) -> None: ...
 
 class PyBamRecord:
     # ── public attributes ------------------------------------------------

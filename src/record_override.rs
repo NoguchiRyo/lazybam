@@ -1,3 +1,4 @@
+use noodles::sam::alignment;
 use noodles::sam::alignment::record_buf::Cigar;
 use noodles::sam::alignment::{
     record::cigar::op::Kind, record::cigar::Op, record::data::field::Tag,
@@ -14,6 +15,7 @@ use pyo3::types::PyAny;
 pub struct RecordOverride {
     pub reference_sequence_id: Option<u32>,
     pub cigar: Option<Cigar>,
+    pub alignment_start: Option<u32>,
     pub tags: Vec<(Tag, Value)>,
 }
 
@@ -23,6 +25,7 @@ impl RecordOverride {
     fn new(
         reference_sequence_id: Option<u32>,
         cigar: Option<Vec<(u32, u32)>>,
+        alignment_start: Option<u32>,
         tags: Option<Vec<(String, Py<PyAny>)>>,
     ) -> Self {
         let cigar_opt = match cigar {
@@ -44,6 +47,7 @@ impl RecordOverride {
         RecordOverride {
             reference_sequence_id,
             cigar: cigar_opt,
+            alignment_start: alignment_start,
             tags: tag_vec,
         }
     }
@@ -52,6 +56,11 @@ impl RecordOverride {
     #[setter]
     fn reference_sequence_id(&mut self, rid: u32) {
         self.reference_sequence_id = Some(rid);
+    }
+
+    #[setter]
+    fn alignment_start(&mut self, pos: u32) {
+        self.alignment_start = Some(pos);
     }
 
     #[setter]

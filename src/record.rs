@@ -67,7 +67,7 @@ impl PyBamRecord {
         let qual = QualityScores::from(self.record.quality_scores().as_ref().to_vec());
         let mut data = Data::try_from(self.record.data()).unwrap_or_default();
 
-        let position = match self.record.alignment_start() {
+        let mut position = match self.record.alignment_start() {
             Some(Ok(pos)) => pos,
             Some(Err(_)) => {
                 return Err(anyhow::anyhow!("Invalid alignment start position"));
@@ -93,6 +93,10 @@ impl PyBamRecord {
 
             if let Some(reference_id) = &r_override.reference_sequence_id {
                 ref_id = *reference_id as usize;
+            }
+
+            if let Some(alignment_start) = &r_override.alignment_start {
+                position = Position::try_from(*alignment_start as usize).unwrap();
             }
         }
         // builder
