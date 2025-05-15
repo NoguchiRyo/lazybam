@@ -1,4 +1,10 @@
-from .lazybam import BamReader, write_chunk_py, merge_chunks_py, PyBamRecord
+from .lazybam import (
+    BamReader,
+    write_chunk_py,
+    merge_chunks_py,
+    PyBamRecord,
+    RecordOverride,
+)
 from .header import BamHeader
 
 __all__ = [
@@ -7,6 +13,7 @@ __all__ = [
     "merge_chunks_py",
     "BamHeader",
     "PyBamRecord",
+    "RecordOverride",
 ]
 
 
