@@ -1,4 +1,3 @@
-use noodles::sam::alignment;
 use noodles::sam::alignment::record_buf::Cigar;
 use noodles::sam::alignment::{
     record::cigar::op::Kind, record::cigar::Op, record::data::field::Tag,

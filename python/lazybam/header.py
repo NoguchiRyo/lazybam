@@ -82,6 +82,16 @@ class BamHeader:
             raise ValueError("Program record must include 'ID' field")
         self.header.setdefault("@PG", []).append(fields)
 
+    def change_SO_tag(self, value: str) -> None:
+        """Change the SO tag in the header."""
+        if "@HD" not in self.header:
+            self.header["@HD"] = {
+                "VN": "1.6",
+                "SO": value,
+            }
+        else:
+            self.header["@HD"]["SO"] = value
+
     def remove_program(self, program_id: str) -> None:
         """Remove a @PG record by its ID."""
         self.header["@PG"] = [
@@ -95,3 +105,11 @@ class BamHeader:
         """
         self.refs = refs
         self.header["@SQ"] = [{"SN": name, "LN": str(length)} for name, length in refs]
+
+    def __repr__(self) -> str:
+        """Return a string representation of the header."""
+        return self.to_string()
+
+    def __str__(self) -> str:
+        """Return a string representation of the header."""
+        return self.to_string()
