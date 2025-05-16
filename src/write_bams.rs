@@ -83,8 +83,8 @@ fn coord_cmp(a: &sam::alignment::RecordBuf, b: &sam::alignment::RecordBuf) -> st
         (Some(ra), Some(rb)) => match ra.cmp(&rb) {
             Equal => a
                 .alignment_start()
-                .unwrap()
-                .cmp(&b.alignment_start().unwrap()),
+                .expect("Invalid alignment start")
+                .cmp(&b.alignment_start().expect("Invalid alignment start")),
             non_eq => non_eq,
         },
         // Mapped < unmapped

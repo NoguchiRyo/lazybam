@@ -1,4 +1,6 @@
 from typing import Dict, Any, List, Tuple
+from .error import DuplicateProgramIDError
+import warnings
 
 
 class BamHeader:
@@ -80,7 +82,23 @@ class BamHeader:
         """Add a @PG program record. Fields must include at least ID."""
         if "ID" not in fields:
             raise ValueError("Program record must include 'ID' field")
-        self.header.setdefault("@PG", []).append(fields)
+
+        # check if ID already exists
+        try:
+            for rec in self.header.get("@PG", []):
+                if rec.get("ID") == fields["ID"]:
+                    raise DuplicateProgramIDError()
+            self.header.setdefault("@PG", []).append(fields)
+        except DuplicateProgramIDError:
+            warnings.warn(f"Program ID '{fields['ID']}' already exists")
+            warnings.warn("Trying again with a different ID.")
+            # Generate a new ID
+            if str.isdigit(fields["ID"][-1]):
+                new_id = fields["ID"][:-1] + str(int(fields["ID"][-1]) + 1)
+            else:
+                new_id = fields["ID"] + "2"
+            fields["ID"] = new_id
+            self.add_program(**fields)
 
     def change_SO_tag(self, value: str) -> None:
         """Change the SO tag in the header."""

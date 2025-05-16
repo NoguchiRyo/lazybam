@@ -67,56 +67,62 @@ impl PyBamRecord {
         let qual = QualityScores::from(self.record.quality_scores().as_ref().to_vec());
         let mut data = Data::try_from(self.record.data()).unwrap_or_default();
 
-        let mut position = match self.record.alignment_start() {
-            Some(Ok(pos)) => pos,
-            Some(Err(_)) => {
-                return Err(anyhow::anyhow!("Invalid alignment start position"));
-            }
-            None => Position::try_from(0).unwrap(),
+        let mut position_opt = match self.record.alignment_start() {
+            Some(Ok(pos)) => Some(pos),
+            Some(Err(_)) => return Err(anyhow::anyhow!("Invalid alignment start position")),
+            None => None,
+        };
+
+        let mut ref_id_opt = match self.record.reference_sequence_id() {
+            Some(Ok(rid)) => Some(rid),
+            Some(Err(_)) => return Err(anyhow::anyhow!("Invalid reference sequence ID")),
+            None => None,
         };
 
         let mut cigar_vec: Vec<Op> = self.record.cigar().iter().filter_map(Result::ok).collect();
-        let mut ref_id = match self.record.reference_sequence_id() {
-            Some(Ok(rid)) => rid,
-            Some(Err(_)) => {
-                return Err(anyhow::anyhow!("Invalid reference sequence ID"));
-            }
-            None => 0,
-        };
-        if let Some(r_override) = &self.record_override {
-            for (tag, value) in &r_override.tags {
+
+        let mut flag = self.record.flags();
+
+        if let Some(ov) = &self.record_override {
+            for (tag, value) in &ov.tags {
                 data.insert(*tag, value.clone());
             }
-            if let Some(cigar) = &r_override.cigar {
+            if let Some(cigar) = &ov.cigar {
                 cigar_vec = cigar.iter().filter_map(Result::ok).collect();
             }
-
-            if let Some(reference_id) = &r_override.reference_sequence_id {
-                ref_id = *reference_id as usize;
+            if let Some(rid) = ov.reference_sequence_id {
+                ref_id_opt = Some(rid as usize);
+                flag.remove(Flags::UNMAPPED);
             }
-
-            if let Some(alignment_start) = &r_override.alignment_start {
-                position = Position::try_from(*alignment_start as usize).unwrap();
+            if let Some(start) = ov.alignment_start {
+                position_opt = Some(Position::try_from(start as usize)?);
             }
         }
         // builder
-        let b = RecordBuf::builder()
+        let mut builder = RecordBuf::builder()
             .set_name(self.qname())
-            .set_flags(Flags::from_bits_truncate(self.flag()))
+            .set_flags(flag)
             .set_cigar(Cigar::from(cigar_vec))
             .set_sequence(seq)
             .set_quality_scores(qual)
-            .set_data(data)
-            .set_reference_sequence_id(ref_id)
-            .set_alignment_start(position)
-            .set_mapping_quality(MappingQuality::try_from(self.mapq()).unwrap());
-        Ok(b.build())
+            .set_data(data);
+
+        if let Some(rid) = ref_id_opt {
+            builder = builder.set_reference_sequence_id(rid);
+        }
+        if let Some(pos) = position_opt {
+            builder = builder.set_alignment_start(pos);
+        }
+        let record_buf = builder
+            .set_mapping_quality(MappingQuality::try_from(self.mapq())?)
+            .build();
+
+        Ok(record_buf)
     }
 }
 
 #[pymethods]
 impl PyBamRecord {
-    #[setter]
     fn set_record_override(&mut self, override_: RecordOverride) {
         self.record_override = Some(override_);
     }

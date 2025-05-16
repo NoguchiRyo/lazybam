@@ -38,35 +38,35 @@ pub fn merge_chunks(
     out_bam: &Path,
     sort: bool,
 ) -> std::io::Result<()> {
-    println!(
-        "merge_chunks: starting with {} chunks, sort={}...",
-        chunks.len(),
-        sort
-    );
+    // println!(
+    //     "merge_chunks: starting with {} chunks, sort={}...",
+    //     chunks.len(),
+    //     sort
+    // );
 
     // ── 1. Set up the output writer ───────────────────────────────────────
     let file = File::create(out_bam)?;
     let mut writer = bam::io::Writer::new(file);
-    println!("merge_chunks: writing header to {:?}", out_bam);
+    // println!("merge_chunks: writing header to {:?}", out_bam);
     writer.write_header(header)?;
 
     // ── 2. Fast path: just concatenate chunks, no global sort ─────────────
     if !sort {
         for p in chunks {
-            println!("merge_chunks: concatenating chunk {:?}...", p);
+            // println!("merge_chunks: concatenating chunk {:?}...", p);
             copy_records(header, p, &mut writer)?;
         }
-        println!("merge_chunks: flushing writer (concatenate path)");
+        // println!("merge_chunks: flushing writer (concatenate path)");
         writer.try_finish()?; // flush BGZF
         return Ok(());
     }
 
     // ── 3. Build k‑way merge structures ───────────────────────────────────
-    println!("merge_chunks: opening chunk readers...");
+    // println!("merge_chunks: opening chunk readers...");
     let mut readers: Vec<bam::io::Reader<bgzf::Reader<File>>> = chunks
         .iter()
         .map(|p| {
-            println!("merge_chunks: opening chunk {:?}", p);
+            // println!("merge_chunks: opening chunk {:?}", p);
             bam::io::reader::Builder::default()
                 .build_from_path(p)
                 .and_then(|mut r| {
@@ -113,33 +113,33 @@ pub fn merge_chunks(
     }
 
     let mut heap: BinaryHeap<Entry> = BinaryHeap::new();
-    println!("merge_chunks: priming heap with one record per chunk...");
+    // println!("merge_chunks: priming heap with one record per chunk...");
 
     // Prime the heap with one record from each reader.
     for (i, rdr) in readers.iter_mut().enumerate() {
         let mut rec = RecordBuf::default();
         if rdr.read_record_buf(header, &mut rec)? != 0 {
-            println!(
-                "merge_chunks: chunk {} yields first record ref_id={:?}, start={:?}",
-                i,
-                rec.reference_sequence_id(),
-                rec.alignment_start()
-            );
+            // println!(
+            //     "merge_chunks: chunk {} yields first record ref_id={:?}, start={:?}",
+            //     i,
+            //     rec.reference_sequence_id(),
+            //     rec.alignment_start()
+            // );
             heap.push(Entry { chunk_idx: i, rec });
         } else {
-            println!("merge_chunks: chunk {} was empty", i);
+            // println!("merge_chunks: chunk {} was empty", i);
         }
     }
 
     // ── 4. Perform streaming k‑way merge ──────────────────────────────────
-    println!("merge_chunks: entering merge loop...");
-    let mut count = 0usize;
+    // println!("merge_chunks: entering merge loop...");
+    // let mut count = 0usize;
     while let Some(Entry { chunk_idx, rec }) = heap.pop() {
         writer.write_alignment_record(header, &rec)?;
-        count += 1;
-        if count % 100_000 == 0 {
-            println!("merge_chunks: wrote {} records...", count);
-        }
+        // count += 1;
+        // if count % 100_000 == 0 {
+        //     println!("merge_chunks: wrote {} records...", count);
+        // }
 
         let rdr = &mut readers[chunk_idx];
         let mut next = RecordBuf::default();
@@ -150,19 +150,19 @@ pub fn merge_chunks(
             });
         }
     }
-    println!("merge_chunks: merge loop done, total {} records", count);
+    // println!("merge_chunks: merge loop done, total {} records", count);
 
     writer.try_finish()?; // flush BGZF blocks
-    println!("merge_chunks: writer flushed");
+                          // println!("merge_chunks: writer flushed");
 
     // ── 5. Build BAI index in a second pass over the merged BAM ───────────
     if let Some(idx_path) = out_bam.to_str().map(|s| format!("{s}.bai")) {
-        println!("merge_chunks: building BAI index at {:?}", idx_path);
+        // println!("merge_chunks: building BAI index at {:?}", idx_path);
         build_bai_index(header, out_bam, Path::new(&idx_path))?;
-        println!("merge_chunks: BAI index built");
+        // println!("merge_chunks: BAI index built");
     }
 
-    println!("merge_chunks: done");
+    // println!("merge_chunks: done");
     Ok(())
 }
 
@@ -227,10 +227,10 @@ fn build_bai_index(header: &sam::Header, bam_path: &Path, bai_path: &Path) -> st
                 let mapped = !record
                     .flags()
                     .contains(sam::alignment::record::Flags::UNMAPPED);
-                println!(
-                    "build_bai_index: add_record rid={} start={:?} end={:?}",
-                    rid, start_pos, end_pos
-                );
+                // println!(
+                //     "build_bai_index: add_record rid={} start={:?} end={:?}",
+                //     rid, start_pos, end_pos
+                // );
                 Some((rid, start_pos, end_pos, mapped))
             }
             _ => None, // unplaced or unmapped
