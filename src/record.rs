@@ -135,6 +135,14 @@ impl PyBamRecord {
             .unwrap_or_default()
     }
     #[getter]
+    fn rid(&self) -> i32 {
+        self.record
+            .reference_sequence_id()
+            .and_then(|r| r.ok())
+            .map(|r| r as i32)
+            .unwrap_or(-1)
+    }
+    #[getter]
     fn flag(&self) -> u16 {
         u16::from(self.record.flags())
     }

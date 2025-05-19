@@ -16,10 +16,20 @@ class BamHeader:
         self.header = header
         self.refs = refs if refs is not None else []
 
+    def get_ref_name(self, rid: int) -> str:
+        """Get reference name by index."""
+        if rid < 0 or rid >= len(self.refs):
+            raise IndexError(f"Reference ID {rid} out of range")
+        return self.refs[rid][0]
+
     @classmethod
-    def parse_header_text(cls, text: str) -> Dict[str, Any]:
+    def parse_header_text(
+        cls, text: str
+    ) -> tuple[Dict[str, Any], list[tuple[str, int]]]:
         """Parse SAM-style header text into a dict structure."""
         h: Dict[str, Any] = {}
+        refs: List[Tuple[str, int]] = []
+        # Parse header lines
         for line in text.strip().split("\n"):
             if not line or not line.startswith("@"):
                 continue
@@ -35,10 +45,14 @@ class BamHeader:
                     key, value = f.split(":", 1)
                     rec[key] = value
                 h.setdefault(tag, []).append(rec)
+                if tag == "@SQ":
+                    # Add reference name and length to refs
+                    if "SN" in rec and "LN" in rec:
+                        refs.append((rec["SN"], int(rec["LN"])))
             elif tag == "@CO":
                 comment = fields[0] if fields else ""
                 h.setdefault(tag, []).append(comment)
-        return h
+        return h, refs
 
     @classmethod
     def from_bytes(cls, data: bytes) -> "BamHeader":
@@ -46,8 +60,8 @@ class BamHeader:
         Construct BamHeader by decoding header bytes (SAM-style) and parsing text.
         """
         text = data.decode("ascii")
-        header_dict = cls.parse_header_text(text)
-        return cls(header_dict)
+        header_dict, refs = cls.parse_header_text(text)
+        return cls(header_dict, refs)
 
     def get_header_text(self) -> str:
         """Reconstruct SAM-style header text from the internal dict."""

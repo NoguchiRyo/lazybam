@@ -9,7 +9,7 @@ import lazybam as lb
 
 f = lb.BamReader(str(path_to_bam), chunk_size=1000)
 
-print(f.header.decode("utf-8"))
+print(f.header)
 
 for records in f:
     for record in records:

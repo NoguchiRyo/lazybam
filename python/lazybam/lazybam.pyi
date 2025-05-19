@@ -54,6 +54,7 @@ class PyBamRecord:
     pos: int
     len: int  # template length
     mapq: int
+    rid: int
 
     # ── getters (read-only properties) ----------------------------------
     @property
@@ -67,7 +68,9 @@ class PyBamRecord:
     def set_record_override(self, record_override: RecordOverride) -> None: ...
 
 class BamReader:
-    def __init__(self, path: str, chunk_size: Optional[int] = None) -> None: ...
+    def __init__(
+        self, path: str, chunk_size: Optional[int] = None, region: Optional[str] = None
+    ) -> None: ...
 
     # ── context‑manager --------------------------------------------------
     def __enter__(self) -> BamReader: ...
