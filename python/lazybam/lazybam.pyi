@@ -69,7 +69,7 @@ class PyBamRecord:
 
 class BamReader:
     def __init__(
-        self, path: str, chunk_size: Optional[int] = None, region: Optional[str] = None
+        self, path: str, chunk_size: int, region: Optional[str] = None
     ) -> None: ...
 
     # ── context‑manager --------------------------------------------------
