@@ -3,6 +3,7 @@ use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
 
 use noodles::sam::alignment::record::data::field::value::Array;
+use noodles::sam::alignment::record::data::field::Tag;
 use noodles::sam::alignment::record_buf::{Cigar, Data, QualityScores, Sequence as SeqBuf};
 use noodles::sam::alignment::{
     record::{Flags, MappingQuality},
@@ -190,6 +191,71 @@ impl PyBamRecord {
             .map(|op| (op.kind() as u32, op.len() as u32))
             .collect();
         return ops;
+    }
+
+    fn get_field_by_tag<'py>(&self, tag: &str, py: Python<'py>) -> PyResult<PyObject> {
+        // First, convert tag to two bytes
+        let tag_bytes = tag.as_bytes();
+        // tag が 2 バイトでない場合はエラー
+        if tag_bytes.len() != 2 {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "tag must be 2 bytes",
+            ));
+        }
+        // それ以外は元の record.data() から取得
+        for result in self.record.data().iter() {
+            let (key, value) = result.map_err(|_| {
+                PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "failed to get field by tag: {}",
+                    tag
+                ))
+            })?;
+            if key == Tag::new(tag_bytes[0], tag_bytes[1]) {
+                let obj = match value {
+                    BamValue::Int8(n) => (n as i32).into_py_any(py).unwrap(),
+                    BamValue::UInt8(n) => (n as u32).into_py_any(py).unwrap(),
+                    BamValue::Int16(n) => (n as i32).into_py_any(py).unwrap(),
+                    BamValue::UInt16(n) => (n as u32).into_py_any(py).unwrap(),
+                    BamValue::Int32(n) => (n as i32).into_py_any(py).unwrap(),
+                    BamValue::UInt32(n) => (n as u32).into_py_any(py).unwrap(),
+                    BamValue::Float(f) => (f as f64).into_py_any(py).unwrap(),
+                    BamValue::Character(c) => c.to_string().into_py_any(py).unwrap(),
+                    BamValue::String(bs) => String::from_utf8_lossy(bs)
+                        .into_owned()
+                        .into_py_any(py)
+                        .unwrap(),
+                    BamValue::Array(arr) => match arr {
+                        Array::UInt8(a) => {
+                            PyArray1::from_vec(py, a.iter().filter_map(|r| r.ok()).collect())
+                                .into_py_any(py)
+                                .unwrap()
+                        }
+                        Array::Int8(a) => {
+                            PyArray1::from_vec(py, a.iter().filter_map(|r| r.ok()).collect())
+                                .into_py_any(py)
+                                .unwrap()
+                        }
+                        Array::Int16(a) => {
+                            PyArray1::from_vec(py, a.iter().filter_map(|r| r.ok()).collect())
+                                .into_py_any(py)
+                                .unwrap()
+                        }
+                        Array::Float(a) => {
+                            PyArray1::from_vec(py, a.iter().filter_map(|r| r.ok()).collect())
+                                .into_py_any(py)
+                                .unwrap()
+                        }
+                        _ => py.None().into_py_any(py).unwrap(),
+                    },
+                    _ => py.None().into_py_any(py).unwrap(),
+                };
+                return Ok(obj);
+            }
+        }
+        Err(PyErr::new::<pyo3::exceptions::PyKeyError, _>(format!(
+            "tag not found: {}",
+            tag
+        )))
     }
 
     #[getter]
