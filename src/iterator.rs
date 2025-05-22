@@ -28,6 +28,7 @@ pub struct BamReader {
 impl BamReader {
     /// path, chunk_size, region を受け取るように変更
     #[new]
+    #[pyo3(signature = (path, chunk_size=None, region=None))]
     fn new(path: &str, chunk_size: Option<usize>, region: Option<&str>) -> PyResult<Self> {
         let chunk_size = chunk_size.unwrap_or(1);
 
