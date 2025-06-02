@@ -6,6 +6,8 @@ use noodles::sam::alignment::{
 };
 
 use anyhow::Context;
+use numpy::PyArrayMethods;
+use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 
@@ -152,6 +154,85 @@ pub fn convert_pyany_to_value(obj: PyObject) -> anyhow::Result<Value> {
 
         if let Ok(s) = any.extract::<String>() {
             return Ok(Value::from(s.as_str()));
+        }
+
+        // 2. If it is a 1D numpy array of i8, downcast and convert into Vec<i8>, then into BufValue::Array.
+        if let Ok(py_arr) = any.downcast::<PyArray1<i8>>() {
+            let array: PyReadonlyArray1<'_, i8> = py_arr.readonly();
+            // as_slice() で &[i8] を取り出す
+            let slice = array
+                .as_slice()
+                .map_err(|e| anyhow::anyhow!("Failed to get i8 slice: {}", e))?;
+            let vec_i8 = slice.to_vec();
+            // From<Vec<i8>> for BufValue があるので、これで配列タグが作れる
+            let buf_value: Value = Vec::<i8>::from(vec_i8).into();
+            return Ok(buf_value);
+        }
+
+        // 3. If it is a 1D numpy array of u8, downcast and convert into Vec<u8>, then into BufValue::Array.
+        if let Ok(py_arr) = any.downcast::<PyArray1<u8>>() {
+            let array: PyReadonlyArray1<'_, u8> = py_arr.readonly();
+            let slice = array
+                .as_slice()
+                .map_err(|e| anyhow::anyhow!("Failed to get u8 slice: {}", e))?;
+            let vec_u8 = slice.to_vec();
+            let buf_value: Value = Vec::<u8>::from(vec_u8).into();
+            return Ok(buf_value);
+        }
+
+        // 4. If it is a 1D numpy array of i16, downcast and convert into Vec<i16>, then into BufValue::Array.
+        if let Ok(py_arr) = any.downcast::<PyArray1<i16>>() {
+            let array: PyReadonlyArray1<'_, i16> = py_arr.readonly();
+            let slice = array
+                .as_slice()
+                .map_err(|e| anyhow::anyhow!("Failed to get i16 slice: {}", e))?;
+            let vec_i16 = slice.to_vec();
+            let buf_value: Value = Vec::<i16>::from(vec_i16).into();
+            return Ok(buf_value);
+        }
+
+        // 5. If it is a 1D numpy array of u16, downcast and convert into Vec<u16>, then into BufValue::Array.
+        if let Ok(py_arr) = any.downcast::<PyArray1<u16>>() {
+            let array: PyReadonlyArray1<'_, u16> = py_arr.readonly();
+            let slice = array
+                .as_slice()
+                .map_err(|e| anyhow::anyhow!("Failed to get u16 slice: {}", e))?;
+            let vec_u16 = slice.to_vec();
+            let buf_value: Value = Vec::<u16>::from(vec_u16).into();
+            return Ok(buf_value);
+        }
+
+        // 6. If it is a 1D numpy array of i32, downcast and convert into Vec<i32>, then into BufValue::Array.
+        if let Ok(py_arr) = any.downcast::<PyArray1<i32>>() {
+            let array: PyReadonlyArray1<'_, i32> = py_arr.readonly();
+            let slice = array
+                .as_slice()
+                .map_err(|e| anyhow::anyhow!("Failed to get i32 slice: {}", e))?;
+            let vec_i32 = slice.to_vec();
+            let buf_value: Value = Vec::<i32>::from(vec_i32).into();
+            return Ok(buf_value);
+        }
+
+        // 7. If it is a 1D numpy array of u32, downcast and convert into Vec<u32>, then into BufValue::Array.
+        if let Ok(py_arr) = any.downcast::<PyArray1<u32>>() {
+            let array: PyReadonlyArray1<'_, u32> = py_arr.readonly();
+            let slice = array
+                .as_slice()
+                .map_err(|e| anyhow::anyhow!("Failed to get u32 slice: {}", e))?;
+            let vec_u32 = slice.to_vec();
+            let buf_value: Value = Vec::<u32>::from(vec_u32).into();
+            return Ok(buf_value);
+        }
+
+        // 8. If it is a 1D numpy array of f32, downcast and convert into Vec<f32>, then into BufValue::Array.
+        if let Ok(py_arr) = any.downcast::<PyArray1<f32>>() {
+            let array: PyReadonlyArray1<'_, f32> = py_arr.readonly();
+            let slice = array
+                .as_slice()
+                .map_err(|e| anyhow::anyhow!("Failed to get f32 slice: {}", e))?;
+            let vec_f32 = slice.to_vec();
+            let buf_value: Value = Vec::<f32>::from(vec_f32).into();
+            return Ok(buf_value);
         }
         // その他はエラー
         let ty = any.get_type().name()?; // ← PyAnyMethods::get_type :contentReference[oaicite:3]{index=3}
