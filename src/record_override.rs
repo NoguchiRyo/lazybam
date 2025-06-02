@@ -1,4 +1,5 @@
 use noodles::sam::alignment::record_buf::Cigar;
+use noodles::sam::alignment::record_buf::{QualityScores, Sequence as SeqBuf};
 use noodles::sam::alignment::{
     record::cigar::op::Kind, record::cigar::Op, record::data::field::Tag,
     record_buf::data::field::Value,
@@ -12,6 +13,9 @@ use pyo3::types::PyAny;
 #[pyclass]
 #[derive(Clone)]
 pub struct RecordOverride {
+    pub qname: Option<String>,
+    pub seq: Option<SeqBuf>,
+    pub qual: Option<QualityScores>,
     pub reference_sequence_id: Option<u32>,
     pub cigar: Option<Cigar>,
     pub alignment_start: Option<u32>,
@@ -22,11 +26,22 @@ pub struct RecordOverride {
 impl RecordOverride {
     #[new]
     fn new(
+        qname: Option<String>,
+        seq: Option<String>,
+        qual: Option<Vec<u8>>,
         reference_sequence_id: Option<u32>,
         cigar: Option<Vec<(u32, u32)>>,
         alignment_start: Option<u32>,
         tags: Option<Vec<(String, Py<PyAny>)>>,
     ) -> Self {
+        let seq_opt = match seq {
+            Some(s) => Some(SeqBuf::from(s.as_bytes())),
+            None => None,
+        };
+        let qual_opt = match qual {
+            Some(q) => Some(QualityScores::from(q)),
+            None => None,
+        };
         let cigar_opt = match cigar {
             Some(cigar_list) => convert_vec_to_cigar(cigar_list).ok(),
             None => None,
@@ -44,7 +59,10 @@ impl RecordOverride {
         }
 
         RecordOverride {
-            reference_sequence_id,
+            qname: qname,
+            seq: seq_opt,
+            qual: qual_opt,
+            reference_sequence_id: reference_sequence_id,
             cigar: cigar_opt,
             alignment_start: alignment_start,
             tags: tag_vec,

@@ -64,8 +64,9 @@ impl PyBamRecord {
     /// Convert to RecordBuf, applying overrides
     pub fn to_record_buf(&self) -> anyhow::Result<RecordBuf> {
         // sequence & quality
-        let seq = SeqBuf::from(self.seq().into_bytes());
-        let qual = QualityScores::from(self.record.quality_scores().as_ref().to_vec());
+        let mut qname_opt = self.qname();
+        let mut seq_opt = SeqBuf::from(self.seq().into_bytes());
+        let mut qual_opt = QualityScores::from(self.record.quality_scores().as_ref().to_vec());
         let mut data = Data::try_from(self.record.data()).unwrap_or_default();
 
         let mut position_opt = match self.record.alignment_start() {
@@ -98,14 +99,23 @@ impl PyBamRecord {
             if let Some(start) = ov.alignment_start {
                 position_opt = Some(Position::try_from(start as usize)?);
             }
+            if let Some(seq) = &ov.seq {
+                seq_opt = SeqBuf::from(seq.clone());
+            }
+            if let Some(qual) = &ov.qual {
+                qual_opt = QualityScores::from(qual.clone());
+            }
+            if let Some(qname) = &ov.qname {
+                qname_opt = qname.clone();
+            }
         }
         // builder
         let mut builder = RecordBuf::builder()
-            .set_name(self.qname())
+            .set_name(qname_opt)
             .set_flags(flag)
             .set_cigar(Cigar::from(cigar_vec))
-            .set_sequence(seq)
-            .set_quality_scores(qual)
+            .set_sequence(seq_opt)
+            .set_quality_scores(qual_opt)
             .set_data(data);
 
         if let Some(rid) = ref_id_opt {

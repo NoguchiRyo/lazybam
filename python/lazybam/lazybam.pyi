@@ -25,11 +25,26 @@ class PyKind:
 class RecordOverride:
     def __init__(
         self,
+        qname: Optional[str] = None,
+        seq: Optional[str] = None,
+        qual: Optional[List[int]] = None,
         reference_sequence_id: Optional[int] = None,
         cigar: Optional[List[Tuple[int, int]]] = None,
         alignment_start: Optional[int] = None,
         tags: Optional[List[Tuple[str, Any]]] = None,
     ) -> None: ...
+    @property
+    def qname(self) -> Optional[str]: ...
+    @qname.setter
+    def qname(self, name: str) -> None: ...
+    @property
+    def seq(self) -> Optional[str]: ...
+    @seq.setter
+    def seq(self, sequence: str) -> None: ...
+    @property
+    def qual(self) -> Optional[List[int]]: ...
+    @qual.setter
+    def qual(self, quality: List[int]) -> None: ...
     @property
     def reference_sequence_id(self) -> Optional[int]: ...
     @reference_sequence_id.setter
