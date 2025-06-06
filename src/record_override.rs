@@ -27,6 +27,7 @@ pub struct RecordOverride {
 #[pymethods]
 impl RecordOverride {
     #[new]
+    #[pyo3(signature = (qname=None, seq=None, qual=None, reference_sequence_id=None, cigar=None, alignment_start=None, tags=None))]
     fn new(
         qname: Option<String>,
         seq: Option<String>,
