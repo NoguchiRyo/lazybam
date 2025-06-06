@@ -34,7 +34,7 @@ impl PyRecordBuf {
             .set_sequence(Sequence::from(seq.as_bytes()))
             .set_quality_scores(QualityScores::from(qual.clone()));
 
-        let mut flag = Flags::default();
+        let mut flag = Flags::UNMAPPED;
 
         if let Some(id) = reference_sequence_id {
             builder = builder.set_reference_sequence_id(id as usize);
