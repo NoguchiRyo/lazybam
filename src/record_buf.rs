@@ -19,6 +19,7 @@ impl PyRecordBuf {
 #[pymethods]
 impl PyRecordBuf {
     #[new]
+    #[pyo3(signature = (qname, seq, qual, reference_sequence_id=None, cigar=None, alignment_start=None, tags=None))]
     pub fn new(
         qname: String,
         seq: String,
