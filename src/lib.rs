@@ -13,6 +13,7 @@ fn lazybam(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<iterator::BamReader>()?;
     m.add_class::<record::PyBamRecord>()?;
     m.add_class::<record_override::RecordOverride>()?;
+    m.add_class::<record_buf::PyRecordBuf>()?;
     m.add_function(wrap_pyfunction!(write::write_chunk_py, m)?)?;
     m.add_function(wrap_pyfunction!(write::write_recordbuf_chunk_py, m)?)?;
     m.add_function(wrap_pyfunction!(write::merge_chunks_py, m)?)?;
