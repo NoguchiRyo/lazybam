@@ -101,7 +101,7 @@ impl RecordOverride {
     }
 }
 
-fn convert_string_to_tag(tag_str: String) -> anyhow::Result<Tag> {
+pub fn convert_string_to_tag(tag_str: String) -> anyhow::Result<Tag> {
     if tag_str.len() != 2 {
         return Err(anyhow::anyhow!("Invalid tag length: {}", tag_str.len()));
     }
@@ -241,7 +241,7 @@ pub fn convert_pyany_to_value(obj: PyObject) -> anyhow::Result<Value> {
     })
 }
 
-fn convert_vec_to_cigar(cigar_list: Vec<(u32, u32)>) -> anyhow::Result<Cigar> {
+pub fn convert_vec_to_cigar(cigar_list: Vec<(u32, u32)>) -> anyhow::Result<Cigar> {
     let ops: Vec<Op> = cigar_list
         .into_iter()
         .map(|(k, l)| {

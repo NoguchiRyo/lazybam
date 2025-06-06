@@ -83,6 +83,18 @@ class PyBamRecord:
     def set_record_override(self, record_override: RecordOverride) -> None: ...
     def get_field_by_tag(self, tag: str) -> Any: ...
 
+class PyRecordBuf:
+    def __init__(
+        self,
+        qname: str,
+        seq: str,
+        qual: List[int],
+        reference_sequence_id: Optional[int] = None,
+        cigar: Optional[List[Tuple[int, int]]] = None,
+        alignment_start: Optional[int] = None,
+        tags: Optional[List[Tuple[str, Any]]] = None,
+    ) -> None: ...
+
 class BamReader:
     def __init__(
         self, path: str, chunk_size: int, region: Optional[str] = None
@@ -117,6 +129,12 @@ def write_chunk_py(
 def merge_chunks_py(
     header_bytes: bytes,
     chunks: List[str],
+    out_bam: str,
+    sort: bool,
+) -> None: ...
+def write_recordbuf_chunk_py(
+    header_bytes: bytes,
+    records: List[PyRecordBuf],
     out_bam: str,
     sort: bool,
 ) -> None: ...
