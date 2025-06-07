@@ -92,6 +92,7 @@ class PyRecordBuf:
         reference_sequence_id: Optional[int] = None,
         cigar: Optional[List[Tuple[int, int]]] = None,
         alignment_start: Optional[int] = None,
+        mapping_quality: Optional[int] = None,
         tags: Optional[List[Tuple[str, Any]]] = None,
     ) -> None: ...
 
