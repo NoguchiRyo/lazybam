@@ -6,7 +6,7 @@ use noodles::sam::alignment::record::data::field::value::Array;
 use noodles::sam::alignment::record::data::field::Tag;
 use noodles::sam::alignment::record_buf::{Cigar, Data, QualityScores, Sequence as SeqBuf};
 use noodles::sam::alignment::{
-    record::{Flags, MappingQuality},
+    record::Flags, //, MappingQuality
     RecordBuf,
 };
 use noodles::{bam, core::Position, sam};
@@ -125,7 +125,7 @@ impl PyBamRecord {
             builder = builder.set_alignment_start(pos);
         }
         let record_buf = builder
-            .set_mapping_quality(MappingQuality::try_from(self.mapq())?)
+            //.set_mapping_quality(MappingQuality::try_from(self.mapq())?)
             .build();
 
         Ok(record_buf)

@@ -1,5 +1,6 @@
 use noodles::core::Position;
 use noodles::sam::alignment::record::Flags;
+use noodles::sam::alignment::record::MappingQuality;
 use noodles::sam::alignment::record_buf::{Cigar, Data, QualityScores, Sequence};
 use noodles::sam::alignment::RecordBuf;
 use pyo3::prelude::*;
@@ -19,7 +20,7 @@ impl PyRecordBuf {
 #[pymethods]
 impl PyRecordBuf {
     #[new]
-    #[pyo3(signature = (qname, seq, qual, reference_sequence_id=None, cigar=None, alignment_start=None, tags=None))]
+    #[pyo3(signature = (qname, seq, qual, reference_sequence_id=None, cigar=None, alignment_start=None, mapping_quality=None, tags=None))]
     pub fn new(
         qname: String,
         seq: String,
@@ -27,6 +28,7 @@ impl PyRecordBuf {
         reference_sequence_id: Option<u32>,
         cigar: Option<Vec<(u32, u32)>>,
         alignment_start: Option<u32>,
+        mapping_quality: Option<u8>,
         tags: Option<Vec<(String, Py<PyAny>)>>,
     ) -> PyResult<Self> {
         let mut builder = RecordBuf::builder()
@@ -65,6 +67,10 @@ impl PyRecordBuf {
         }
         if let Some((_tag, _value)) = tag_vec.first() {
             builder = builder.set_data(Data::from_iter(tag_vec.iter().cloned()));
+        }
+
+        if let Some(mq) = mapping_quality.and_then(MappingQuality::new) {
+            builder = builder.set_mapping_quality(mq);
         }
 
         builder = builder.set_flags(flag);
