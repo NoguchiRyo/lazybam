@@ -1,3 +1,4 @@
+use noodles::sam::alignment::record::MappingQuality;
 use noodles::sam::alignment::record_buf::Cigar;
 use noodles::sam::alignment::record_buf::{QualityScores, Sequence as SeqBuf};
 use noodles::sam::alignment::{
@@ -22,12 +23,13 @@ pub struct RecordOverride {
     pub cigar: Option<Cigar>,
     pub alignment_start: Option<u32>,
     pub tags: Vec<(Tag, Value)>,
+    pub mapping_quality: Option<MappingQuality>,
 }
 
 #[pymethods]
 impl RecordOverride {
     #[new]
-    #[pyo3(signature = (qname=None, seq=None, qual=None, reference_sequence_id=None, cigar=None, alignment_start=None, tags=None))]
+    #[pyo3(signature = (qname=None, seq=None, qual=None, reference_sequence_id=None, cigar=None, alignment_start=None, tags=None, mapping_quality=None))]
     fn new(
         qname: Option<String>,
         seq: Option<String>,
@@ -36,6 +38,7 @@ impl RecordOverride {
         cigar: Option<Vec<(u32, u32)>>,
         alignment_start: Option<u32>,
         tags: Option<Vec<(String, Py<PyAny>)>>,
+        mapping_quality: Option<u8>,
     ) -> Self {
         let seq_opt = match seq {
             Some(s) => Some(SeqBuf::from(s.as_bytes())),
@@ -61,6 +64,11 @@ impl RecordOverride {
             }
         }
 
+        let mapq = match mapping_quality {
+            Some(mq) => MappingQuality::new(mq),
+            None => None,
+        };
+
         RecordOverride {
             qname: qname,
             seq: seq_opt,
@@ -69,6 +77,7 @@ impl RecordOverride {
             cigar: cigar_opt,
             alignment_start: alignment_start,
             tags: tag_vec,
+            mapping_quality: mapq,
         }
     }
 

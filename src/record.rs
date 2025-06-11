@@ -68,6 +68,7 @@ impl PyBamRecord {
         let mut seq_opt = SeqBuf::from(self.seq().into_bytes());
         let mut qual_opt = QualityScores::from(self.record.quality_scores().as_ref().to_vec());
         let mut data = Data::try_from(self.record.data()).unwrap_or_default();
+        let mut mapq_opt = self.record.mapping_quality();
 
         let mut position_opt = match self.record.alignment_start() {
             Some(Ok(pos)) => Some(pos),
@@ -108,6 +109,9 @@ impl PyBamRecord {
             if let Some(qname) = &ov.qname {
                 qname_opt = qname.clone();
             }
+            if let Some(mapq) = &ov.mapping_quality {
+                mapq_opt = Some(*mapq)
+            }
         }
         // builder
         let mut builder = RecordBuf::builder()
@@ -124,9 +128,10 @@ impl PyBamRecord {
         if let Some(pos) = position_opt {
             builder = builder.set_alignment_start(pos);
         }
-        let record_buf = builder
-            //.set_mapping_quality(MappingQuality::try_from(self.mapq())?)
-            .build();
+        if let Some(mapq) = mapq_opt {
+            builder = builder.set_mapping_quality(mapq);
+        }
+        let record_buf = builder.build();
 
         Ok(record_buf)
     }
